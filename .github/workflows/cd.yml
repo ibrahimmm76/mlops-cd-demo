@@ -17,6 +17,8 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: pytest
+        env:
+          PYTHONPATH: .
 
   build:
     needs: test
@@ -60,5 +62,3 @@ jobs:
       - run: |
           sleep 5
           curl --fail http://localhost:5000/health
-
-          - run: python -m pytest
