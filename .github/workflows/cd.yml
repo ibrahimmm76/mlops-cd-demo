@@ -60,3 +60,5 @@ jobs:
       - run: |
           sleep 5
           curl --fail http://localhost:5000/health
+
+          - run: python -m pytest
