@@ -1,0 +1,62 @@
+name: Continuous Delivery
+on:
+  push:
+    tags:
+      - "v*.*.*"
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: pytest
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          docker build -t ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }} -t ghcr.io/${{ github.repository }}:latest .
+          docker push ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+          docker push ghcr.io/${{ github.repository }}:latest
+
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - run: docker pull ghcr.io/${{ github.repository }}:${{ needs.build.outputs.version }}
+      - run: docker run -d -p 5000:5000 ghcr.io/${{ github.repository }}:${{ needs.build.outputs.version }}
+      - run: |
+          sleep 5
+          curl --fail http://localhost:5000/health
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: docker pull ghcr.io/${{ github.repository }}:${{ needs.build.outputs.version }}
+      - run: docker run -d -p 5000:5000 ghcr.io/${{ github.repository }}:${{ needs.build.outputs.version }}
+      - run: |
+          sleep 5
+          curl --fail http://localhost:5000/health
