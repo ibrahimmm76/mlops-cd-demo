@@ -53,7 +53,7 @@ jobs:
           curl --fail http://localhost:5000/health
 
   deploy-production:
-    needs: deploy-staging
+    needs: [build, deploy-staging]
     runs-on: ubuntu-latest
     environment: production
     steps:
